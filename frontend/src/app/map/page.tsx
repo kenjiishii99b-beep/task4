@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DetailView, type DetailActions } from "@/components/map/DetailView";
 import { GraphCanvas } from "@/components/map/GraphCanvas";
 import { MemoModal, type MemoModalState } from "@/components/map/MemoModal";
-import { SearchBox } from "@/components/map/SearchBox";
+import { NoResults, SearchBox } from "@/components/map/SearchBox";
 import { Avatar, ErrorBanner, Spinner } from "@/components/ui";
 import { useViewMode } from "@/components/ViewMode";
 import { api } from "@/lib/api";
@@ -69,6 +69,7 @@ function useMapState(index: GraphIndex, isMobile: boolean) {
   const [history, setHistory] = useState<string[]>([]);
   const [categories, setCategories] = useState<Set<CategoryId>>(new Set()); // 空 = すべて
   const [query, setQuery] = useState("");
+  const [fromQuery, setFromQuery] = useState(false);
   const [ready, setReady] = useState(false);
 
   const expand = useCallback(
@@ -92,21 +93,23 @@ function useMapState(index: GraphIndex, isMobile: boolean) {
 
   const back = useCallback(() => setHistory((h) => h.slice(0, -1)), []);
 
-  // 初期表示：?select= か ?q= を引き継ぐ
+  // 初期表示：?select= はそのノードを選択、?q= は検索欄に候補（または No results found）を開いて見せる。
+  // ?q= のときは勝手に選択せず、先頭の候補の周辺だけを背景として表示する。
   useEffect(() => {
     if (ready) return;
     const params = new URLSearchParams(window.location.search);
-    let center = params.get("select") ?? "";
-    const q = params.get("q") ?? "";
-    if (!center && q) center = search(index, q)[0]?.id ?? "";
-    const valid = index.person.has(center) || index.tag.has(center);
-    const start = valid ? center : DEFAULT_CENTER;
+    const selectParam = params.get("select") ?? "";
+    const q = (params.get("q") ?? "").trim();
+    const selectValid = index.person.has(selectParam) || index.tag.has(selectParam);
+    const firstHit = !selectValid && q ? search(index, q)[0]?.id : undefined;
+    const start = selectValid ? selectParam : (firstHit ?? DEFAULT_CENTER);
     const v = initialVisible(index, start, isMobile ? 4 : 6, isMobile ? 5 : 7);
     v.add(start);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setVisible(v);
     setQuery(q);
-    setHistory(valid || !q ? [start] : []);
+    setFromQuery(!selectValid && !!q);
+    setHistory(selectValid || !q ? [start] : []);
     setReady(true);
   }, [index, isMobile, ready]);
 
@@ -141,7 +144,7 @@ function useMapState(index: GraphIndex, isMobile: boolean) {
   const hidden = useMemo(() => new Set(categories.size === 0 ? [] : CATEGORY_IDS.filter((c) => !categories.has(c))), [categories]);
   const selectedId = history[history.length - 1] ?? null;
 
-  return { visible: liveVisible, selectedId, history, select, back, categories, hidden, toggleCategory, applyCategories, query, setQuery };
+  return { visible: liveVisible, selectedId, history, select, back, categories, hidden, toggleCategory, applyCategories, query, setQuery, ready, fromQuery };
 }
 
 type MapState = ReturnType<typeof useMapState>;
@@ -197,7 +200,9 @@ function PcMap({ index, state, actions }: { index: GraphIndex; state: MapState; 
           <h1 className="font-medium">人物マップ</h1>
         </div>
         <div className="mx-auto w-full max-w-md">
-          <SearchBox index={index} value={state.query} onChange={state.setQuery} onPick={(h) => state.select(h.id)} />
+          {state.ready && (
+            <SearchBox index={index} value={state.query} onChange={state.setQuery} onPick={(h) => state.select(h.id)} defaultOpen={state.fromQuery} />
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button type="button" onClick={() => setMode("mobile")} className="btn-ghost">
@@ -311,7 +316,9 @@ function MobileMap({ index, state, actions }: { index: GraphIndex; state: MapSta
           <h1 className="font-medium">人物マップ</h1>
           <span className="w-16" />
         </div>
-        <SearchBox index={index} value={state.query} onChange={state.setQuery} onPick={(h) => openDetail(h.id)} />
+        {state.ready && (
+          <SearchBox index={index} value={state.query} onChange={state.setQuery} onPick={(h) => openDetail(h.id)} defaultOpen={state.fromQuery} />
+        )}
         {tab === "map" && (
           <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-0.5" role="group" aria-label="カテゴリーで絞り込む">
             <CategoryChip active={state.categories.size === 0} label="すべて" onClick={() => state.toggleCategory("all")} />
@@ -376,7 +383,14 @@ function MobileMap({ index, state, actions }: { index: GraphIndex; state: MapSta
               <input value={peopleQuery} onChange={(e) => setPeopleQuery(e.target.value)} placeholder="氏名・会社名で絞り込む" aria-label="人物を絞り込む" className="field" />
             </div>
             <ul className="flex-1 overflow-y-auto px-3 pb-3">
-              <li className="pb-1 text-xs text-sub">全{index.data.persons.length}名</li>
+              <li className="pb-1 text-xs text-sub" aria-live="polite">
+                {peopleQuery.trim() ? `${people.length}件の候補（全${index.data.persons.length}名）` : `全${index.data.persons.length}名`}
+              </li>
+              {people.length === 0 && (
+                <li>
+                  <NoResults query={peopleQuery} hint="氏名・会社名・部署の一部で探せます。" />
+                </li>
+              )}
               {people.map((p) => (
                 <li key={p.id}>
                   <button type="button" onClick={() => openDetail(p.id)} className="flex min-h-14 w-full items-center gap-3 border-b border-line text-left">

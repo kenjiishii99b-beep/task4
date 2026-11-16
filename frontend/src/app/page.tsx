@@ -1,9 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { ErrorBanner, MicIcon, SearchIcon } from "@/components/ui";
+import { useCallback, useRef, useState } from "react";
+import { SearchBox } from "@/components/map/SearchBox";
+import { ErrorBanner, MicIcon } from "@/components/ui";
 import { ViewToggle } from "@/components/ViewMode";
+import { api } from "@/lib/api";
+import { buildIndex, type GraphIndex } from "@/lib/graph";
 import { getRecognitionCtor, useSpeechRecognition } from "@/lib/useSpeech";
 
 // クイック探索チップ：検索文字列ではなく初期選択ノードを渡す
@@ -21,10 +24,23 @@ export default function HomePage() {
   const voiceSearch = useSpeechRecognition({ continuous: false });
   const searchText = voiceSearch.listening ? voiceSearch.finalText + voiceSearch.interim : query;
 
-  const goSearch = (q: string) => {
-    const s = q.trim();
-    router.push(s ? `/map/?q=${encodeURIComponent(s)}` : "/map/");
-  };
+  // 検索候補のためのデータ。検索欄を使い始めたときに 1 回だけ読み込む
+  const [index, setIndex] = useState<GraphIndex | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const loadingRef = useRef(false);
+  const loadIndex = useCallback(() => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    setLoadError(null);
+    api
+      .graph()
+      .then((g) => setIndex(buildIndex(g)))
+      .catch((e: Error) => {
+        loadingRef.current = false; // 次に検索欄を使ったときに再試行する
+        setLoadError(`候補を表示できません：${e.message}`);
+      });
+  }, []);
+  const [voiceSignal, setVoiceSignal] = useState(0);
 
   // マイク権限を確認してから録音画面へ（録音画面で認識を開始する）
   const startRecording = async () => {
@@ -43,19 +59,22 @@ export default function HomePage() {
   };
 
   const toggleVoiceSearch = () => {
+    loadIndex();
     if (voiceSearch.listening) {
       const text = voiceSearch.stop();
       setQuery(text);
+      setVoiceSignal((n) => n + 1);
       return;
     }
     voiceSearch.start();
   };
 
-  // 音声検索の認識結果を、認識が終わった時点で 1 回だけ入力欄へ反映する
+  // 音声検索の認識結果を、認識が終わった時点で 1 回だけ入力欄へ反映し、候補を開く
   const [appliedVoice, setAppliedVoice] = useState("");
   if (!voiceSearch.listening && voiceSearch.finalText && voiceSearch.finalText !== appliedVoice) {
     setAppliedVoice(voiceSearch.finalText);
     setQuery(voiceSearch.finalText);
+    setVoiceSignal((n) => n + 1);
   }
 
   return (
@@ -99,35 +118,33 @@ export default function HomePage() {
             <br />
             仲間の知識も借りましょう。
           </h2>
-          <form
-            role="search"
-            onSubmit={(e) => {
-              e.preventDefault();
-              goSearch(searchText);
-            }}
-            className="relative"
-          >
-            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sub">
-              <SearchIcon />
-            </span>
-            <input
-              type="search"
+          <div role="search">
+            <SearchBox
+              index={index}
               value={searchText}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(v) => {
+                setQuery(v);
+                loadIndex();
+              }}
+              onFocus={loadIndex}
+              onPick={(h) => router.push(`/map/?select=${encodeURIComponent(h.id)}`)}
+              unavailableMessage={loadError}
+              openSignal={voiceSignal}
               placeholder="○○社のキーマンは？"
-              aria-label="人・タグ・案件を探す"
-              className="field h-12 pr-12 pl-9"
+              size="lg"
+              trailing={
+                <button
+                  type="button"
+                  onClick={toggleVoiceSearch}
+                  aria-label={voiceSearch.listening ? "音声入力を止める" : "音声で検索する"}
+                  aria-pressed={voiceSearch.listening}
+                  className={`flex h-10 w-10 items-center justify-center rounded-md ${voiceSearch.listening ? "bg-rec text-white" : "text-sub hover:text-fg"}`}
+                >
+                  <MicIcon className="h-5 w-5" />
+                </button>
+              }
             />
-            <button
-              type="button"
-              onClick={toggleVoiceSearch}
-              aria-label={voiceSearch.listening ? "音声入力を止める" : "音声で検索する"}
-              aria-pressed={voiceSearch.listening}
-              className={`absolute top-1/2 right-1 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-md ${voiceSearch.listening ? "bg-rec text-white" : "text-sub hover:text-fg"}`}
-            >
-              <MicIcon className="h-5 w-5" />
-            </button>
-          </form>
+          </div>
           {voiceSearch.error && (
             <p className="text-xs text-sub">
               {voiceSearch.error === "unsupported" ? "このブラウザは音声入力に対応していません（Google Chrome をお使いください）。" : "音声入力を開始できませんでした。マイクの許可を確認してください。"}
