@@ -3,6 +3,8 @@
 訪問の記録を音声で残し、OpenAI API で要約・自動タグ付けして、人物を起点にタグ・案件・人間関係をたどるアプリです。
 
 - 仕様: [docs/spec.md](docs/spec.md)
+- アーキテクチャ図: [docs/architecture.md](docs/architecture.md)
+- シーケンス図: [docs/sequence.md](docs/sequence.md)
 - Azure 構築手順: [docs/azure-setup.md](docs/azure-setup.md)
 - 開発ルール・コマンド: [CLAUDE.md](CLAUDE.md)
 
