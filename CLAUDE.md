@@ -50,7 +50,7 @@ cd frontend
 npm install
 npm run dev        # http://localhost:3000
 npm run build      # out/ に静的出力
-npx tsc --noEmit; npx eslint src
+npx next typegen; npx tsc --noEmit; npx eslint src   # typegen なしだと LayoutProps が見つからない（CI で再現済み）
 ```
 
 ### このPC固有の注意

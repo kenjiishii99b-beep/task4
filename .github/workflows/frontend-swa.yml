@@ -26,6 +26,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - run: npm ci
+      # LayoutProps などのルート型は .next/types に生成されるため、型チェックの前に生成する
+      - run: npx next typegen
       - run: npx tsc --noEmit
       - run: npx eslint src
       - run: npm run build
