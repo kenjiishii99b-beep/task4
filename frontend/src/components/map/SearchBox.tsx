@@ -4,6 +4,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { search, type GraphIndex, type SearchHit } from "@/lib/graph";
 import { Avatar, CategoryBadge, SearchIcon } from "../ui";
 
+const normalize = (s: string) => s.toLowerCase().replace(/[\s　]+/g, "");
+
 /** 検索で何も見つからなかったときの表示（検索欄のドロップダウン・人物一覧で共通） */
 export function NoResults({ query, hint = "氏名・会社名・タグ名・案件名の一部で探せます。" }: { query: string; hint?: string }) {
   return (
@@ -53,12 +55,19 @@ export function SearchBox({
   openSignal = 0,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
-  const [active, setActive] = useState(0);
+  // ↑↓キーで選んだ候補の位置。-1 は「どれも選んでいない」
+  const [active, setActive] = useState(-1);
+  // 候補を選ばずに確定（Enter）した検索語。この語のままなら No results found を出す
+  const [submitted, setSubmitted] = useState<string | null>(null);
+  // 音声入力や他画面からの引き継ぎなど、入力が確定済みの状態で開いたか
+  const [autoConfirmed, setAutoConfirmed] = useState(defaultOpen);
   const [seenSignal, setSeenSignal] = useState(openSignal);
   if (openSignal !== seenSignal) {
     setSeenSignal(openSignal);
     setOpen(true);
-    setActive(0);
+    setActive(-1);
+    setSubmitted(null);
+    setAutoConfirmed(true);
   }
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -79,10 +88,26 @@ export function SearchBox({
     onPick(h);
     onChange(h.label);
     setOpen(false);
+    setSubmitted(null);
+    setAutoConfirmed(false);
   };
 
-  const showPanel = open && !!query;
-  const activeId = hits[active] ? `${listId}-${hits[active].id}` : undefined;
+  // Enter で確定：選んだ候補（または名前が完全に一致する候補）があれば開き、なければ No results found
+  const confirm = () => {
+    if (!query) return;
+    const chosen = active >= 0 ? hits[active] : undefined;
+    const exact = hits.find((h) => normalize(h.label) === normalize(query));
+    const target = chosen ?? exact;
+    if (target) return pick(target);
+    setSubmitted(query);
+    setOpen(true);
+  };
+
+  const showNoResults = !!index && ((submitted !== null && submitted === query) || (autoConfirmed && hits.length === 0));
+  const showHits = !!index && hits.length > 0;
+  const showLoading = !index && (autoConfirmed || submitted !== null || query.length > 0);
+  const showPanel = open && !!query && (showNoResults || showHits || showLoading);
+  const activeId = active >= 0 && hits[active] ? `${listId}-${hits[active].id}` : undefined;
 
   return (
     <div ref={wrapRef} className="relative w-full">
@@ -102,7 +127,9 @@ export function SearchBox({
         onChange={(e) => {
           onChange(e.target.value);
           setOpen(true);
-          setActive(0);
+          setActive(-1);
+          setSubmitted(null);
+          setAutoConfirmed(false);
         }}
         onFocus={() => {
           setOpen(true);
@@ -115,12 +142,12 @@ export function SearchBox({
             setActive((a) => Math.min(hits.length - 1, a + 1));
           } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            setActive((a) => Math.max(0, a - 1));
+            setActive((a) => Math.max(-1, a - 1));
           } else if (e.key === "Enter") {
             e.preventDefault();
-            // 候補があれば選択中の候補を開く。なければ「No results found」を見せたままにする
-            if (hits[active]) pick(hits[active]);
-            else setOpen(true);
+            // IME の変換確定の Enter では検索を確定しない
+            if (e.nativeEvent.isComposing) return;
+            confirm();
           } else if (e.key === "Escape") {
             setOpen(false);
           }
@@ -131,37 +158,41 @@ export function SearchBox({
 
       {showPanel && (
         <div className="absolute top-full right-0 left-0 z-40 mt-1 overflow-hidden rounded-lg border border-line bg-panel shadow-xl">
-          {!index ? (
+          {showLoading ? (
             <p role="status" className="px-3 py-3 text-sm text-sub">
               {unavailableMessage ?? "候補を読み込んでいます…"}
             </p>
-          ) : hits.length === 0 ? (
-            <NoResults query={value} />
           ) : (
             <>
-              <p className="border-b border-line px-3 py-1.5 text-xs text-sub" aria-live="polite">
-                候補 {hits.length}件
-              </p>
-              <ul id={listId} role="listbox" aria-label="検索の候補" className="max-h-80 overflow-y-auto py-1">
-                {hits.map((h, i) => (
-                  <li key={h.id} id={`${listId}-${h.id}`} role="option" aria-selected={i === active}>
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onMouseEnter={() => setActive(i)}
-                      onClick={() => pick(h)}
-                      className={`flex min-h-11 w-full items-center gap-2.5 px-3 py-1.5 text-left ${i === active ? "bg-card" : "hover:bg-card"}`}
-                    >
-                      {h.kind === "person" ? <Avatar text={h.label[0]} size={26} /> : <CategoryBadge category={h.category!} size="xs" />}
-                      <span className="min-w-0">
-                        <span className="block text-sm">{h.label}</span>
-                        <span className="block truncate text-xs text-sub">{h.sub}</span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {showNoResults && (
+                <NoResults query={value} hint={hits.length > 0 ? "近い候補がある場合は、下から選んでください。" : undefined} />
+              )}
+              {showHits && (
+                <>
+                  <p className={`border-b border-line px-3 py-1.5 text-xs text-sub ${showNoResults ? "border-t" : ""}`} aria-live="polite">
+                    {showNoResults ? `近い候補 ${hits.length}件` : `候補 ${hits.length}件`}
+                  </p>
+                  <ul id={listId} role="listbox" aria-label="検索の候補" className={`overflow-y-auto py-1 ${showNoResults ? "max-h-52" : "max-h-80"}`}>
+                    {hits.map((h, i) => (
+                      <li key={h.id} id={`${listId}-${h.id}`} role="option" aria-selected={i === active}>
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => pick(h)}
+                          className={`flex min-h-11 w-full items-center gap-2.5 px-3 py-1.5 text-left ${i === active ? "bg-card" : "hover:bg-card"}`}
+                        >
+                          {h.kind === "person" ? <Avatar text={h.label[0]} size={26} /> : <CategoryBadge category={h.category!} size="xs" />}
+                          <span className="min-w-0">
+                            <span className="block text-sm">{h.label}</span>
+                            <span className="block truncate text-xs text-sub">{h.sub}</span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </>
           )}
         </div>
