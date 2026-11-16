@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { SearchBox } from "@/components/map/SearchBox";
@@ -151,25 +152,24 @@ export default function HomePage() {
             </p>
           )}
           <div className="flex flex-wrap gap-2" aria-label="よく見る探し方">
+            {/* Link（a 要素）にしておくと、JS の読み込み完了前に押されても遷移できる */}
             {QUICK_CHIPS.map((c) => (
-              <button
+              <Link
                 key={c.select}
-                type="button"
-                onClick={() => router.push(`/map/?select=${c.select}`)}
-                className="min-h-10 rounded-full border border-line bg-card px-3.5 text-sm text-fg hover:border-sub"
+                href={`/map/?select=${c.select}`}
+                className="inline-flex min-h-10 items-center rounded-full border border-line bg-card px-3.5 text-sm text-fg hover:border-sub"
               >
                 {c.label}
-              </button>
+              </Link>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={() => router.push("/map/")}
+          <Link
+            href="/map/"
             className="mt-1 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-accent/60 bg-accent/10 px-5 text-sm font-medium text-fg transition-colors hover:border-accent hover:bg-accent/20"
           >
             <MapIcon className="h-5 w-5 text-accent" />
             人物マップをひらく
-          </button>
+          </Link>
         </section>
       </div>
     </main>
