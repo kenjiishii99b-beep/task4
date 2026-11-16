@@ -118,7 +118,7 @@ class AutoTagIn(Summary):
 
 class SummarizeOut(CamelModel):
     summary: Summary
-    mode: Literal["openai", "mock"]
+    mode: Literal["azure", "openai", "mock"]
 
 
 class AssignedTag(CamelModel):
@@ -132,7 +132,7 @@ class AssignedTag(CamelModel):
 
 class AutoTagOut(CamelModel):
     assigned_tags: list[AssignedTag]
-    mode: Literal["openai", "mock"]
+    mode: Literal["azure", "openai", "mock"]
 
 
 # ---------- 登録系 ----------
@@ -153,7 +153,7 @@ class KnowledgeOut(CamelModel):
     memo: MemoOut
     assigned_tags: list[RegisteredTag]
     is_new_person: bool
-    mode: Literal["openai", "mock"]
+    mode: Literal["azure", "openai", "mock"]
 
 
 class PersonTagCreate(CamelModel):

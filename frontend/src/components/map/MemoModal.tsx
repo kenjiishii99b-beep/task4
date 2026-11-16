@@ -168,7 +168,7 @@ function NewMemo({ index, personId, onClose, onChanged }: { index: GraphIndex; p
       setNewSuggestions(r.assignedTags.filter((t) => !t.tagId));
       setAcceptedNew(new Set(r.assignedTags.filter((t) => !t.tagId).map((t) => t.label)));
       if (r.assignedTags.length === 0) setNotice("提案できるタグが見つかりませんでした。下の一覧から選んでください。");
-      else if (r.mode === "mock") setNotice("OpenAI API キー未設定のため、既存タグとのキーワード一致で提案しました。");
+      else if (r.mode === "mock") setNotice("AI が未設定のため、既存タグとのキーワード一致で提案しました。");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -230,7 +230,7 @@ function NewMemo({ index, personId, onClose, onChanged }: { index: GraphIndex; p
             <span>タグ（{selected.size + acceptedNew.size}件選択中）</span>
           </legend>
           <button type="button" onClick={suggest} disabled={suggesting || (!quote.trim() && !interp.trim())} className="btn-secondary self-start text-xs">
-            OpenAI API でタグを提案
+            AI でタグを提案
           </button>
           {suggesting && <Spinner label="タグを提案しています…" />}
           {notice && <p className="text-xs text-sub">{notice}</p>}

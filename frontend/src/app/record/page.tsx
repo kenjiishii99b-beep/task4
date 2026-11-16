@@ -169,7 +169,7 @@ export default function RecordPage() {
               </p>
 
               {sending ? (
-                <Spinner label="OpenAI API で要約しています…" />
+                <Spinner label="AI で要約しています…" />
               ) : speech.listening ? (
                 <button
                   type="button"
@@ -205,7 +205,7 @@ export default function RecordPage() {
             </div>
           </>
         )}
-        {sending && showManual && <Spinner label="OpenAI API で要約しています…" />}
+        {sending && showManual && <Spinner label="AI で要約しています…" />}
       </div>
     </main>
   );

@@ -84,7 +84,14 @@ export interface Summary {
   interpretation: string;
 }
 
-export type AiMode = "openai" | "mock";
+export type AiMode = "azure" | "openai" | "mock";
+
+/** 画面に出す AI の呼び名 */
+export const AI_LABEL: Record<AiMode, string> = {
+  azure: "Azure OpenAI",
+  openai: "OpenAI API",
+  mock: "簡易判定",
+};
 
 export interface AssignedTag {
   tagId: string | null;

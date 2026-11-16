@@ -7,7 +7,7 @@ import { Avatar, CategoryBadge, ErrorBanner } from "@/components/ui";
 import { api } from "@/lib/api";
 import { CATEGORIES, CATEGORY_IDS } from "@/lib/categories";
 import { flow } from "@/lib/flow";
-import type { CategoryId, KnowledgeResult, RegisteredTag } from "@/lib/types";
+import { AI_LABEL, type CategoryId, type KnowledgeResult, type RegisteredTag } from "@/lib/types";
 
 export default function TaggingPage() {
   const router = useRouter();
@@ -84,9 +84,9 @@ export default function TaggingPage() {
         <div>
           <h1 className="text-lg leading-relaxed font-medium">登録完了しました。お疲れ様でした。</h1>
           <p className="mt-1 text-sm text-sub">
-            {result.mode === "openai"
-              ? "OpenAI API により以下のタグを自動付与しました。"
-              : "以下のタグを自動付与しました（OpenAI API キー未設定のため、既存タグとのキーワード一致で判定しています）。"}
+            {result.mode !== "mock"
+              ? `${AI_LABEL[result.mode]} により以下のタグを自動付与しました。`
+              : "以下のタグを自動付与しました（AI が未設定のため、既存タグとのキーワード一致で判定しています）。"}
           </p>
         </div>
 

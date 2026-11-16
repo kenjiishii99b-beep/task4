@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { ErrorBanner, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
 import { flow, type DraftSummary } from "@/lib/flow";
-import type { Summary } from "@/lib/types";
+import { AI_LABEL, type Summary } from "@/lib/types";
 
 const FIELDS: { key: keyof Summary; label: string; multiline?: boolean }[] = [
   { key: "company", label: "会社名" },
@@ -74,7 +74,7 @@ export default function ConfirmPage() {
           <div>
             <h1 className="text-lg font-medium">要約の確認</h1>
             <p className="mt-1 text-sm text-sub">
-              {draft.mode === "openai" ? "OpenAI API が文字起こしから抽出しました。" : "OpenAI API キーが未設定のため、簡易抽出の結果です。"}
+              {draft.mode !== "mock" ? `${AI_LABEL[draft.mode]} が文字起こしから抽出しました。` : "AI が未設定のため、簡易抽出の結果です。"}
               内容を確認し、違うところは修正してください。
             </p>
           </div>
@@ -121,7 +121,7 @@ export default function ConfirmPage() {
           </button>
         </div>
         {editing && <p className="text-xs text-sub">登録する前に「修正を確定」を押してください。</p>}
-        {saving && <Spinner label="登録して、OpenAI API でタグを付けています…" />}
+        {saving && <Spinner label="登録して、AI でタグを付けています…" />}
       </div>
     </main>
   );

@@ -20,7 +20,15 @@ Functions が使える環境ならそのまま Function App にデプロイで�
 - アプリ設定: `SCM_DO_BUILD_DURING_DEPLOYMENT=true` / `WEBSITES_PORT=8000` / `MYSQL_SSL=true` / `OPENAI_MODEL` / `CORS_ORIGINS=<SWA の URL>` / `DATABASE_URL`
 - `DATABASE_URL`（パスワードを含む）は `api/.env.azure` に `DB_PASSWORD=` を書き、
   `powershell -ExecutionPolicy Bypass -File api/scripts/setup-azure-db.ps1` で設定する（パスワードは表示されない）。
-- OpenAI を有効にするとき: Azure ポータルの Web アプリ「環境変数」に `OPENAI_API_KEY` を追加して保存（自動で再起動）。
+- AI の接続先（`api/app/config.py` の `ai_mode`）:
+  1. **Azure OpenAI**（優先）: `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_API_KEY` / `AZURE_OPENAI_DEPLOYMENT` の 3 つがそろっているとき。
+     現在は `oai-tvmvp-73bb`（`https://oai-tvmvp-73bb.openai.azure.com/`）のデプロイ `gpt-4o`。
+     `AZURE_OPENAI_API_VERSION` が空なら v1 API（`/openai/v1/chat/completions`）を使う。
+     デプロイを変えるときは `AZURE_OPENAI_DEPLOYMENT` を書き換える（gpt-5 系など temperature 非対応のモデルは自動で外して再送する）。
+  2. **OpenAI**: `OPENAI_API_KEY`（と `OPENAI_MODEL`）があるとき。
+  3. どちらもなければ簡易抽出（モック）。
+  キー（`AZURE_OPENAI_API_KEY` / `OPENAI_API_KEY`）は Azure ポータルの Web アプリ「環境変数」で利用者が設定する（保存で自動再起動）。
+  どれが使われているかは `/api/health` の `ai`（`azure` / `openai` / `mock`）で確認できる。
 
 ## 再デプロイ
 

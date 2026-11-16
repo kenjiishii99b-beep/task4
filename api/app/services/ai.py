@@ -1,6 +1,9 @@
-"""OpenAI API による要約抽出（ステップ1）と自動タグ付け（ステップ2）。
+"""AI（Azure OpenAI または OpenAI）による要約抽出（ステップ1）と自動タグ付け（ステップ2）。
 
-OPENAI_API_KEY が未設定のときは、キーワード一致による簡易版（モック）で同じ形の結果を返す。
+接続先は設定で決まる（config.Settings.ai_mode）:
+  azure  … AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_KEY / AZURE_OPENAI_DEPLOYMENT がそろっている
+  openai … OPENAI_API_KEY がある
+  mock   … どちらもない（キーワード一致による簡易版で同じ形の結果を返す）
 API キーはサーバー側だけで扱い、ブラウザには出さない。
 """
 
@@ -24,10 +27,29 @@ class AIError(Exception):
     pass
 
 
+def _target() -> tuple[str, dict[str, str], str, str]:
+    """(URL, ヘッダー, payload の model 値, 表示名)"""
+    s = get_settings()
+    if s.ai_mode == "azure":
+        base = s.AZURE_OPENAI_ENDPOINT.rstrip("/")
+        headers = {"api-key": s.AZURE_OPENAI_API_KEY}
+        if s.AZURE_OPENAI_API_VERSION:
+            url = f"{base}/openai/deployments/{s.AZURE_OPENAI_DEPLOYMENT}/chat/completions?api-version={s.AZURE_OPENAI_API_VERSION}"
+        else:
+            url = f"{base}/openai/v1/chat/completions"
+        return url, headers, s.AZURE_OPENAI_DEPLOYMENT, "Azure OpenAI"
+    return _OPENAI_URL, {"Authorization": f"Bearer {s.OPENAI_API_KEY}"}, s.OPENAI_MODEL, "OpenAI API"
+
+
+def _rejects_temperature(resp: httpx.Response) -> bool:
+    """推論系モデル（gpt-5 系など）は temperature の指定を受け付けず 400 を返す"""
+    return resp.status_code == 400 and "temperature" in resp.text
+
+
 def _structured(system: str, user: str, schema_name: str, schema: dict[str, Any]) -> dict[str, Any]:
-    settings = get_settings()
-    payload = {
-        "model": settings.OPENAI_MODEL,
+    url, headers, model, label = _target()
+    payload: dict[str, Any] = {
+        "model": model,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         "response_format": {
             "type": "json_schema",
@@ -36,14 +58,19 @@ def _structured(system: str, user: str, schema_name: str, schema: dict[str, Any]
         "temperature": 0.2,
     }
     try:
-        resp = _client.post(_OPENAI_URL, json=payload, headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"})
+        resp = _client.post(url, json=payload, headers=headers)
+        if _rejects_temperature(resp):
+            payload.pop("temperature")
+            resp = _client.post(url, json=payload, headers=headers)
     except httpx.HTTPError as e:
-        raise AIError("OpenAI API に接続できませんでした") from e
+        raise AIError(f"{label} に接続できませんでした") from e
+    if resp.status_code == 429:
+        raise AIError(f"{label} の利用上限に達しました。少し時間をおいて再度お試しください")
     if resp.status_code != 200:
-        raise AIError(f"OpenAI API がエラーを返しました（HTTP {resp.status_code}）")
+        raise AIError(f"{label} がエラーを返しました（HTTP {resp.status_code}）")
     message = resp.json()["choices"][0]["message"]
     if message.get("refusal"):
-        raise AIError("OpenAI API が要約を返しませんでした。内容を見直して再度お試しください")
+        raise AIError(f"{label} が結果を返しませんでした。内容を見直して再度お試しください")
     return json.loads(message.get("content") or "{}")
 
 
@@ -102,7 +129,7 @@ def _clean(s: Summary) -> Summary:
 
 
 def summarize(transcript: str) -> Summary:
-    if get_settings().ai_mode == "openai":
+    if get_settings().ai_mode != "mock":
         data = _structured(_SUMMARY_SYSTEM, transcript, "summary", _SUMMARY_SCHEMA)
         return _clean(Summary.model_validate(data))
     return _clean(_mock_summarize(transcript))
@@ -197,7 +224,7 @@ _KEYWORDS: dict[str, list[str]] = {
 
 def auto_tag(summary: Summary, existing: list[dict[str, str]], transcript: str = "") -> list[AssignedTag]:
     """existing: [{"id","label","category"}]。transcript は要約から漏れた話題（趣味など）を拾うために渡す。"""
-    if get_settings().ai_mode == "openai":
+    if get_settings().ai_mode != "mock":
         user = json.dumps(
             {"summary": summary.model_dump(by_alias=True), "transcript": transcript[:6000], "existingTags": existing},
             ensure_ascii=False,
