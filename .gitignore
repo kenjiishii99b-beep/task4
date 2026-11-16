@@ -1,0 +1,28 @@
+# Python / API
+api/.venv/
+api/.env
+api/.env.azure
+api/local.settings.json
+api/*.db
+api/.python_packages/
+__pycache__/
+.pytest_cache/
+
+# Frontend（frontend/.gitignore も参照）
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
+
+# 外部から導入したスキル一式（setup-skills.sh / skills-lock.json で再インストールする）
+.agents/
+.claude/skills/
+
+# デプロイ用の一時ファイル
+*.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/

@@ -1,0 +1,12 @@
+azure-functions>=1.21
+fastapi>=0.115
+pydantic>=2.9
+pydantic-settings>=2.6
+sqlalchemy>=2.0.36
+pymysql>=1.1
+cryptography>=43
+certifi
+alembic>=1.14
+httpx>=0.27
+# App Service（Web アプリ）での起動用。Functions では使われない
+uvicorn>=0.32
