@@ -53,6 +53,17 @@ def test_auto_tag_normalizes_unknown_ids_and_duplicates(client, monkeypatch):
     assert [(t["tagId"], t["isNewTag"]) for t in tags] == [("t-energy", False), (None, True)]
 
 
+def test_prompts_keep_personal_topics_and_send_transcript(client, monkeypatch):
+    calls = _use_openai(monkeypatch, lambda _: _Resp(200, {"assignedTags": []}))
+    client.post("/api/auto-tag", json={"personName": "田中", "quote": "省エネ", "transcript": "週末は海釣りに行く"})
+    sent = calls[0]["json"]
+    user = json.loads(sent["messages"][1]["content"])
+    assert user["transcript"] == "週末は海釣りに行く"
+    assert "文字起こし" in sent["messages"][0]["content"]
+    # 要約の指示でも趣味・人柄を残すよう求めている
+    assert "趣味" in ai._SUMMARY_SYSTEM and "人柄" in ai._SUMMARY_SYSTEM
+
+
 def test_openai_error_returns_502(client, monkeypatch):
     _use_openai(monkeypatch, lambda _: _Resp(429, {}))
     r = client.post("/api/summarize", json={"transcript": "テスト"})

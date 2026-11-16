@@ -78,6 +78,35 @@ def test_register_knowledge_creates_new_person(client):
     assert [t["tagId"] for t in body["assignedTags"]] == ["t-sauna"]
 
 
+def test_register_tags_hobby_from_transcript_even_if_summary_omits_it(client):
+    summary = {"company": "東都設備株式会社", "personName": "田中", "quote": "省エネの更新を前倒ししたい", "interpretation": ""}
+    transcript = "田中部長と打合せ。省エネの更新を前倒ししたい。週末は海釣りに行くそうです。"
+    body = client.post("/api/knowledge", json={"summary": summary, "transcript": transcript}).json()
+    assert "t-fishing" in {t["tagId"] for t in body["assignedTags"]}
+
+
+def test_auto_tag_endpoint_accepts_transcript(client):
+    r = client.post("/api/auto-tag", json={"personName": "佐藤", "quote": "相見積もりは必須", "transcript": "最近サウナにはまっている"})
+    assert r.status_code == 200
+    assert "t-sauna" in {t["tagId"] for t in r.json()["assignedTags"]}
+
+
+def test_register_with_title_in_name_matches_existing_person(client):
+    summary = {"company": "東都設備株式会社", "personName": "田中部長", "quote": "省エネ", "interpretation": ""}
+    body = client.post("/api/knowledge", json={"summary": summary}).json()
+    assert body["isNewPerson"] is False
+    assert body["person"]["id"] == "p-tanaka"
+
+
+def test_split_name_title():
+    from app.services.ai import split_name_title
+
+    assert split_name_title("田中部長") == ("田中", "部長")
+    assert split_name_title("佐藤さん") == ("佐藤", "")
+    assert split_name_title("田中 健一") == ("田中 健一", "")
+    assert split_name_title("部長") == ("部長", "")
+
+
 def test_register_requires_person_name(client):
     r = client.post("/api/knowledge", json={"summary": {"personName": " "}})
     assert r.status_code == 400

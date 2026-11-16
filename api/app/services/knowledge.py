@@ -71,7 +71,8 @@ def register_knowledge(db: Session, body: KnowledgeIn) -> dict:
     db.add(memo)
     db.flush()
 
-    suggestions = ai.auto_tag(s, existing_tags(db))
+    # 要約から漏れた趣味などの話題も拾えるよう、元の文字起こしも渡す
+    suggestions = ai.auto_tag(s, existing_tags(db), transcript=body.transcript)
     registered = [_attach_tag(db, person.id, t, memo.id) for t in suggestions]
     memo.tag_ids = [r.tag_id for r in registered]
     db.commit()
@@ -79,7 +80,10 @@ def register_knowledge(db: Session, body: KnowledgeIn) -> dict:
 
 
 def _find_or_create_person(db: Session, s: Summary) -> tuple[models.Person, bool]:
-    name = s.person_name.strip()
+    # 要約確認画面で「田中部長」のように手入力された場合も、氏名部分で照合する
+    name, title = ai.split_name_title(s.person_name)
+    if title and not s.position:
+        s = s.model_copy(update={"position": title})
     candidates = db.scalars(select(models.Person).where(models.Person.name.in_([name, name.replace(" ", ""), name.replace("　", " ")]))).all()
     if not candidates:
         # 姓だけで話した場合（「田中部長」など）にも一致させる

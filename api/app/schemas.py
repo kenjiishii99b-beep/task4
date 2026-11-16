@@ -110,6 +110,12 @@ class Summary(CamelModel):
     interpretation: str = ""
 
 
+class AutoTagIn(Summary):
+    """要約＋（任意で）元の文字起こし"""
+
+    transcript: str = Field(default="", max_length=10000)
+
+
 class SummarizeOut(CamelModel):
     summary: Summary
     mode: Literal["openai", "mock"]

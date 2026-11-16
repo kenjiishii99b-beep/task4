@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.schemas import (
+    AutoTagIn,
     AutoTagOut,
     CamelModel,
     GraphOut,
@@ -47,8 +48,9 @@ def summarize(body: SummarizeIn):
 
 
 @router.post("/auto-tag", response_model=AutoTagOut)
-def auto_tag(body: Summary, db: Session = Depends(get_db)):
-    tags = ai.auto_tag(body, knowledge.existing_tags(db))
+def auto_tag(body: AutoTagIn, db: Session = Depends(get_db)):
+    summary = Summary.model_validate(body.model_dump(exclude={"transcript"}))
+    tags = ai.auto_tag(summary, knowledge.existing_tags(db), transcript=body.transcript)
     return AutoTagOut(assigned_tags=tags, mode=get_settings().ai_mode)
 
 

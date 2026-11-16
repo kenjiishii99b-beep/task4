@@ -55,10 +55,13 @@ _SUMMARY_SCHEMA = {
     "required": ["company", "personName", "dept", "position", "quote", "interpretation"],
     "properties": {
         "company": {"type": "string", "description": "会社名。不明なら空文字"},
-        "personName": {"type": "string", "description": "対象人物の氏名。不明なら空文字"},
+        "personName": {"type": "string", "description": "対象人物の氏名のみ（役職・敬称は含めない。例: 田中部長 → 田中）。不明なら空文字"},
         "dept": {"type": "string", "description": "部署。不明なら空文字"},
         "position": {"type": "string", "description": "ポジション・役職。不明なら空文字"},
-        "quote": {"type": "string", "description": "本人の発言要旨・原文抜粋"},
+        "quote": {
+            "type": "string",
+            "description": "本人の発言要旨・原文抜粋。商談の話に加え、趣味・関心・人柄・見た目の特徴など人物理解に役立つ話も省かずに含める",
+        },
         "interpretation": {"type": "string", "description": "関わる理由・商談上の解釈（登録者の解釈）"},
     },
 }
@@ -67,15 +70,42 @@ _SUMMARY_SYSTEM = (
     "あなたは営業担当者の訪問メモを整理するアシスタントです。"
     "音声の文字起こしから、会った相手の情報を抽出してください。"
     "書かれていないことは推測せず空文字にしてください。"
-    "quote には相手本人の発言の要旨を、interpretation には登録者が感じた関わる理由や商談上の示唆を簡潔にまとめてください。"
+    "personName には氏名だけを入れ、「部長」「さん」などの役職・敬称は含めないでください（役職は position に入れる）。"
+    "quote には相手本人の発言の要旨をまとめてください。"
+    "商談・課題の話だけでなく、趣味・関心ごと・人柄・見た目の特徴など、人物を理解する手がかりになる話も必ず残してください"
+    "（このメモは「人物マップ」で共通の話題を見つけるために使われます）。"
+    "「〜だそうです」「〜とのこと」のような登録者の伝聞の形でも、相手本人についての情報なら quote に含めてください。"
+    "できるだけ本人の言い回しを残し、話題ごとに文を分けてください。"
+    "interpretation には登録者が感じた関わる理由や商談上の示唆を簡潔にまとめてください。"
 )
+
+
+_TITLES = ("部長", "課長", "係長", "工場長", "室長", "社長", "専務", "常務", "所長", "主任", "リーダー", "マネージャー")
+_HONORIFICS = ("さん", "様", "氏", "殿")
+
+
+def split_name_title(name: str) -> tuple[str, str]:
+    """「田中部長」→（田中, 部長）、「佐藤さん」→（佐藤, ""）。役職・敬称を氏名から切り離す。"""
+    n = name.strip()
+    for h in _HONORIFICS:
+        if n.endswith(h) and len(n) > len(h):
+            n = n[: -len(h)].strip()
+    for t in sorted(_TITLES, key=len, reverse=True):
+        if n.endswith(t) and len(n) > len(t):
+            return n[: -len(t)].strip(), t
+    return n, ""
+
+
+def _clean(s: Summary) -> Summary:
+    name, title = split_name_title(s.person_name)
+    return s.model_copy(update={"person_name": name, "position": s.position or title})
 
 
 def summarize(transcript: str) -> Summary:
     if get_settings().ai_mode == "openai":
         data = _structured(_SUMMARY_SYSTEM, transcript, "summary", _SUMMARY_SCHEMA)
-        return Summary.model_validate(data)
-    return _mock_summarize(transcript)
+        return _clean(Summary.model_validate(data))
+    return _clean(_mock_summarize(transcript))
 
 
 def _mock_summarize(text: str) -> Summary:
@@ -139,7 +169,8 @@ _TAG_SCHEMA = {
 def _tag_system() -> str:
     cats = "\n".join(f"- {k}: {v}" for k, v in CATEGORIES.items())
     return (
-        "あなたは営業ナレッジのタグ付け担当です。人物の要約から 1〜5 個のタグを付けてください。\n"
+        "あなたは営業ナレッジのタグ付け担当です。人物の要約（summary）と元の文字起こし（transcript）から 1〜6 個のタグを付けてください。\n"
+        "要約から漏れていても、文字起こしに出てくる趣味・関心ごとなど人物理解に役立つ話題はタグにしてください。\n"
         "既存タグと同じ意味のものは必ず既存タグの tagId と label を使って名寄せし、isNewTag=false にしてください。\n"
         "既存に無いものだけ新規タグ（tagId=null, isNewTag=true）にしてください。\n"
         "共通の趣味があるだけで面識や協力関係があるとは書かないでください。\n"
@@ -164,16 +195,17 @@ _KEYWORDS: dict[str, list[str]] = {
 }
 
 
-def auto_tag(summary: Summary, existing: list[dict[str, str]]) -> list[AssignedTag]:
-    """existing: [{"id","label","category"}]"""
+def auto_tag(summary: Summary, existing: list[dict[str, str]], transcript: str = "") -> list[AssignedTag]:
+    """existing: [{"id","label","category"}]。transcript は要約から漏れた話題（趣味など）を拾うために渡す。"""
     if get_settings().ai_mode == "openai":
         user = json.dumps(
-            {"summary": summary.model_dump(by_alias=True), "existingTags": existing}, ensure_ascii=False
+            {"summary": summary.model_dump(by_alias=True), "transcript": transcript[:6000], "existingTags": existing},
+            ensure_ascii=False,
         )
         data = _structured(_tag_system(), user, "auto_tag", _TAG_SCHEMA)
         tags = [AssignedTag.model_validate(t) for t in data.get("assignedTags", [])]
         return _normalize(tags, existing)
-    return _mock_auto_tag(summary, existing)
+    return _mock_auto_tag(summary, existing, transcript)
 
 
 def _normalize(tags: list[AssignedTag], existing: list[dict[str, str]]) -> list[AssignedTag]:
@@ -196,8 +228,8 @@ def _normalize(tags: list[AssignedTag], existing: list[dict[str, str]]) -> list[
     return out
 
 
-def _mock_auto_tag(summary: Summary, existing: list[dict[str, str]]) -> list[AssignedTag]:
-    text = " ".join([summary.company, summary.quote, summary.interpretation])
+def _mock_auto_tag(summary: Summary, existing: list[dict[str, str]], transcript: str = "") -> list[AssignedTag]:
+    text = " ".join([summary.company, summary.quote, summary.interpretation, transcript])
     out: list[AssignedTag] = []
     for t in existing:
         words = [t["label"], *_KEYWORDS.get(t["id"], [])]
@@ -213,4 +245,4 @@ def _mock_auto_tag(summary: Summary, existing: list[dict[str, str]]) -> list[Ass
                     is_new_tag=False,
                 )
             )
-    return _normalize(out, existing)[:5]
+    return _normalize(out, existing)[:6]
