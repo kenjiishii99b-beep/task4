@@ -1,14 +1,18 @@
 "use client";
 
+import { useState } from "react";
+import { api } from "@/lib/api";
 import { CATEGORIES, CATEGORY_TEXT } from "@/lib/categories";
 import { formatDate, formatDateTime, formatYen, type GraphIndex } from "@/lib/graph";
 import type { Person, Tag } from "@/lib/types";
-import { Avatar, CategoryBadge, TagPill } from "../ui";
+import { Avatar, CategoryBadge, ErrorBanner, TagPill } from "../ui";
 
 export interface DetailActions {
   onNavigate: (id: string) => void;
   onOpenMemo: (memoId: string) => void;
   onNewMemo: (personId: string) => void;
+  /** データを変更したあとにグラフを読み込み直す */
+  onReload: () => Promise<void> | void;
 }
 
 interface Props extends DetailActions {
@@ -19,7 +23,7 @@ interface Props extends DetailActions {
 
 export function DetailView({ index, id, filterActive, ...actions }: Props) {
   const person = index.person.get(id);
-  if (person) return <PersonDetail index={index} person={person} filterActive={filterActive} {...actions} />;
+  if (person) return <PersonDetail key={person.id} index={index} person={person} filterActive={filterActive} {...actions} />;
   const tag = index.tag.get(id);
   if (tag?.category === "project") return <ProjectDetail index={index} tag={tag} {...actions} />;
   if (tag) return <TagDetail index={index} tag={tag} {...actions} />;
@@ -50,7 +54,88 @@ function PersonLink({ person, onNavigate, sub }: { person: Person; onNavigate: (
 
 // ---------------- A. 人物詳細 ----------------
 
-function PersonDetail({ index, person, filterActive, onNavigate, onOpenMemo, onNewMemo }: { index: GraphIndex; person: Person; filterActive: boolean } & DetailActions) {
+/** 人物の基本情報。「編集」で氏名・会社名・部署・役職・要約をその場で直せる */
+function PersonHeader({ person, onReload }: { person: Person; onReload: DetailActions["onReload"] }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ name: person.name, company: person.company, deptTitle: person.deptTitle, summary: person.summary });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const start = () => {
+    setForm({ name: person.name, company: person.company, deptTitle: person.deptTitle, summary: person.summary });
+    setError(null);
+    setEditing(true);
+  };
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) return setError("氏名を入力してください。");
+    setSaving(true);
+    setError(null);
+    try {
+      await api.updatePerson(person.id, form);
+      await onReload();
+      setEditing(false);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <>
+        <div className="flex items-start gap-3">
+          <Avatar text={person.shortName} size={52} />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-medium">{person.name}</h2>
+            <p className="text-sm text-sub">{person.company || "会社名未登録"}</p>
+            <p className="text-sm text-sub">{person.deptTitle || "部署・役職未登録"}</p>
+          </div>
+          <button type="button" onClick={start} className="btn-ghost shrink-0 text-xs" aria-label={`${person.name}の情報を編集`}>
+            編集
+          </button>
+        </div>
+        {person.summary && <p className="text-sm leading-relaxed">{person.summary}</p>}
+      </>
+    );
+  }
+
+  const field = (key: keyof typeof form, label: string, multiline = false) => (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={`edit-${key}`} className="text-xs text-sub">
+        {label}
+      </label>
+      {multiline ? (
+        <textarea id={`edit-${key}`} rows={3} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="field border-accent leading-relaxed" />
+      ) : (
+        <input id={`edit-${key}`} type="text" value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="field border-accent" />
+      )}
+    </div>
+  );
+
+  return (
+    <form onSubmit={save} className="flex flex-col gap-3 rounded-lg border border-accent/40 p-3" aria-label="人物情報の編集">
+      <p className="text-sm font-medium">人物情報を編集</p>
+      {field("name", "氏名")}
+      {field("company", "会社名")}
+      {field("deptTitle", "部署・役職")}
+      {field("summary", "人物の要約", true)}
+      {error && <ErrorBanner>{error}</ErrorBanner>}
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setEditing(false)} disabled={saving} className="btn-secondary flex-1">
+          キャンセル
+        </button>
+        <button type="submit" disabled={saving} className="btn-primary flex-1">
+          {saving ? "保存しています…" : "保存"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function PersonDetail({ index, person, filterActive, onNavigate, onOpenMemo, onNewMemo, onReload }: { index: GraphIndex; person: Person; filterActive: boolean } & DetailActions) {
   const pts = index.tagsOfPerson.get(person.id) ?? [];
   const memos = index.memosOf.get(person.id) ?? [];
   const projects = pts.map((pt) => index.projectByTag.get(pt.tagId)).filter((p) => !!p);
@@ -69,15 +154,7 @@ function PersonDetail({ index, person, filterActive, onNavigate, onOpenMemo, onN
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-start gap-3">
-        <Avatar text={person.shortName} size={52} />
-        <div className="min-w-0">
-          <h2 className="text-lg font-medium">{person.name}</h2>
-          <p className="text-sm text-sub">{person.company}</p>
-          <p className="text-sm text-sub">{person.deptTitle}</p>
-        </div>
-      </div>
-      {person.summary && <p className="text-sm leading-relaxed">{person.summary}</p>}
+      <PersonHeader person={person} onReload={onReload} />
 
       <Section title="Salesforceの情報（サンプル）">
         {projects.length === 0 ? (

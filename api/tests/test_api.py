@@ -107,6 +107,23 @@ def test_split_name_title():
     assert split_name_title("部長") == ("部長", "")
 
 
+def test_update_person_only_changes_sent_fields(client):
+    r = client.patch("/api/persons/p-tanaka", json={"company": " 株式会社東郷工業 ", "deptTitle": "業務部 部長"})
+    assert r.status_code == 200
+    p = r.json()
+    assert p["company"] == "株式会社東郷工業"
+    assert p["deptTitle"] == "業務部 部長"
+    assert p["name"] == "田中 健一"  # 送っていない項目は変わらない
+    assert p["summary"].startswith("設備更新の最終判断者")
+
+
+def test_update_person_name_updates_avatar_and_validates(client):
+    p = client.patch("/api/persons/p-tanaka", json={"name": "高田 健一"}).json()
+    assert p["shortName"] == "高"
+    assert client.patch("/api/persons/p-tanaka", json={"name": "  "}).status_code == 400
+    assert client.patch("/api/persons/p-none", json={"company": "x"}).status_code == 404
+
+
 def test_register_requires_person_name(client):
     r = client.post("/api/knowledge", json={"summary": {"personName": " "}})
     assert r.status_code == 400

@@ -15,9 +15,11 @@ from app.schemas import (
     KnowledgeOut,
     MemoCreate,
     MemoOut,
+    PersonOut,
     PersonTagCreate,
     PersonTagOut,
     PersonTagUpdate,
+    PersonUpdate,
     RegisteredTag,
     SummarizeIn,
     SummarizeOut,
@@ -61,6 +63,11 @@ def auto_tag(body: AutoTagIn, db: Session = Depends(get_db)):
 def register_knowledge(body: KnowledgeIn, db: Session = Depends(get_db)):
     result = knowledge.register_knowledge(db, body)
     return KnowledgeOut.model_validate({**result, "mode": get_settings().ai_mode})
+
+
+@router.patch("/persons/{person_id}", response_model=PersonOut)
+def update_person(person_id: str, body: PersonUpdate, db: Session = Depends(get_db)):
+    return knowledge.update_person(db, person_id, body)
 
 
 @router.post("/person-tags", response_model=RegisteredTag, status_code=201)

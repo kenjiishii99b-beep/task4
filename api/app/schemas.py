@@ -156,6 +156,15 @@ class KnowledgeOut(CamelModel):
     mode: Literal["azure", "openai", "mock"]
 
 
+class PersonUpdate(CamelModel):
+    """人物情報の修正。送られてきた項目だけ更新する。"""
+
+    name: str | None = Field(default=None, max_length=100)
+    company: str | None = Field(default=None, max_length=200)
+    dept_title: str | None = Field(default=None, max_length=200)
+    summary: str | None = Field(default=None, max_length=2000)
+
+
 class PersonTagCreate(CamelModel):
     person_id: str
     tag_id: str | None = None

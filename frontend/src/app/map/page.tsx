@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DetailView } from "@/components/map/DetailView";
+import { DetailView, type DetailActions } from "@/components/map/DetailView";
 import { GraphCanvas } from "@/components/map/GraphCanvas";
 import { MemoModal, type MemoModalState } from "@/components/map/MemoModal";
 import { SearchBox } from "@/components/map/SearchBox";
@@ -153,6 +153,7 @@ function MapScreen({ index, isMobile, reload }: { index: GraphIndex; isMobile: b
     onNavigate: state.select,
     onOpenMemo: (memoId: string) => setMemo({ mode: "view", memoId }),
     onNewMemo: (personId: string) => setMemo({ mode: "new", personId }),
+    onReload: reload,
   };
   const closeMemo = useCallback(() => setMemo(null), []);
 
@@ -164,7 +165,7 @@ function MapScreen({ index, isMobile, reload }: { index: GraphIndex; isMobile: b
   );
 }
 
-type Actions = { onNavigate: (id: string) => void; onOpenMemo: (id: string) => void; onNewMemo: (personId: string) => void };
+type Actions = DetailActions;
 
 function CategoryChip({ active, label, color, onClick }: { active: boolean; label: string; color?: string; onClick: () => void }) {
   return (

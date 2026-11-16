@@ -13,6 +13,7 @@ from app.schemas import (
     MemoCreate,
     PersonTagCreate,
     PersonTagUpdate,
+    PersonUpdate,
     RegisteredTag,
     Summary,
 )
@@ -160,6 +161,29 @@ def _attach_tag(db: Session, person_id: str, t: AssignedTag, memo_id: str | None
         detail_role=pt.detail_role,
         is_new_tag=created,
     )
+
+
+# ---------- 人物情報の修正（人物詳細パネル） ----------
+
+
+def update_person(db: Session, person_id: str, body: PersonUpdate) -> models.Person:
+    p = db.get(models.Person, person_id)
+    if not p:
+        raise NotFoundError("人物が見つかりません")
+    if body.name is not None:
+        name = body.name.strip()
+        if not name:
+            raise ValidationError("氏名を入力してください")
+        p.name = name
+        p.short_name = name[:1]
+    if body.company is not None:
+        p.company = body.company.strip()
+    if body.dept_title is not None:
+        p.dept_title = body.dept_title.strip()
+    if body.summary is not None:
+        p.summary = body.summary.strip()
+    db.commit()
+    return p
 
 
 # ---------- タグの追加・変更・削除（タグ付け結果画面・詳細パネル） ----------

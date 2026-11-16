@@ -163,6 +163,15 @@ sequenceDiagram
         end
     end
 
+    opt 人物情報の編集（人物詳細パネルの「編集」）
+        U->>B: 氏名・会社名・部署・役職・要約を直して「保存」
+        B->>A: PATCH /api/persons/{id}（変更した項目）
+        A->>D: persons を更新
+        A-->>B: 更新後の人物
+        B->>A: GET /api/graph（再読み込み）
+        A-->>B: 最新のグラフ
+    end
+
     opt 根拠メモ・テキストメモ
         U->>B: 「根拠のメモを見る」／「＋ メモ」
         B->>A: POST /api/memos（または PATCH /api/memos/{id}/confirm）
