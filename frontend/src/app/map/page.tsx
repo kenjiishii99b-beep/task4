@@ -109,7 +109,8 @@ function useMapState(index: GraphIndex, isMobile: boolean) {
     setVisible(v);
     setQuery(q);
     setFromQuery(!selectValid && !!q);
-    setHistory(selectValid || !q ? [start] : []);
+    // 何も指定せずに開いたときは未選択（詳細パネルは空、マップは代表的な人物の周辺を表示）
+    setHistory(selectValid ? [start] : []);
     setReady(true);
   }, [index, isMobile, ready]);
 

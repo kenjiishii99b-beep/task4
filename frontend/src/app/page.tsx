@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { SearchBox } from "@/components/map/SearchBox";
-import { ErrorBanner, MicIcon } from "@/components/ui";
+import { ErrorBanner, MapIcon, MicIcon } from "@/components/ui";
 import { ViewToggle } from "@/components/ViewMode";
 import { api } from "@/lib/api";
 import { buildIndex, type GraphIndex } from "@/lib/graph";
@@ -162,7 +162,12 @@ export default function HomePage() {
               </button>
             ))}
           </div>
-          <button type="button" onClick={() => router.push("/map/")} className="btn-ghost self-start">
+          <button
+            type="button"
+            onClick={() => router.push("/map/")}
+            className="mt-1 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-accent/60 bg-accent/10 px-5 text-sm font-medium text-fg transition-colors hover:border-accent hover:bg-accent/20"
+          >
+            <MapIcon className="h-5 w-5 text-accent" />
             人物マップをひらく
           </button>
         </section>
