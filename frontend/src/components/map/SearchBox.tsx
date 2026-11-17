@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { search, type GraphIndex, type SearchHit } from "@/lib/graph";
+import { parseQuery, search, type GraphIndex, type SearchHit } from "@/lib/graph";
 import { Avatar, CategoryBadge, SearchIcon } from "../ui";
 
 const normalize = (s: string) => s.toLowerCase().replace(/[\s　]+/g, "");
@@ -73,6 +73,7 @@ export function SearchBox({
   const wrapRef = useRef<HTMLDivElement>(null);
   const query = value.trim();
   const hits = index && query ? search(index, value, 20) : [];
+  const parsed = parseQuery(value);
 
   // 検索欄の外を押したら閉じる（defaultOpen で開いたときはフォーカスがないため blur では閉じられない）
   useEffect(() => {
@@ -92,12 +93,14 @@ export function SearchBox({
     setAutoConfirmed(false);
   };
 
-  // Enter で確定：選んだ候補（または名前が完全に一致する候補）があれば開き、なければ No results found
+  // Enter で確定：選んだ候補（または名前が完全に一致する候補）があれば開き、なければ No results found。
+  // 例外：「田中部長ってどんな人？」のような質問の形で、候補が 1 人に絞れたときはその人を開く
   const confirm = () => {
     if (!query) return;
     const chosen = active >= 0 ? hits[active] : undefined;
     const exact = hits.find((h) => normalize(h.label) === normalize(query));
-    const target = chosen ?? exact;
+    const answer = parsed.isQuestion && hits.length === 1 ? hits[0] : undefined;
+    const target = chosen ?? exact ?? answer;
     if (target) return pick(target);
     setSubmitted(query);
     setOpen(true);
@@ -170,7 +173,8 @@ export function SearchBox({
               {showHits && (
                 <>
                   <p className={`border-b border-line px-3 py-1.5 text-xs text-sub ${showNoResults ? "border-t" : ""}`} aria-live="polite">
-                    {showNoResults ? `近い候補 ${hits.length}件` : `候補 ${hits.length}件`}
+                    {`${showNoResults ? "近い" : ""}${parsed.keyman ? "キーマン候補" : "候補"} ${hits.length}件`}
+                    {parsed.keyman && !showNoResults && <span className="ml-2 text-sub/80">意思決定者・役職の順</span>}
                   </p>
                   <ul id={listId} role="listbox" aria-label="検索の候補" className={`overflow-y-auto py-1 ${showNoResults ? "max-h-52" : "max-h-80"}`}>
                     {hits.map((h, i) => (

@@ -6,6 +6,7 @@ import { CATEGORIES, CATEGORY_TEXT } from "@/lib/categories";
 import { formatDate, formatDateTime, formatYen, type GraphIndex } from "@/lib/graph";
 import type { Person, Tag } from "@/lib/types";
 import { Avatar, CategoryBadge, ErrorBanner, TagPill } from "../ui";
+import { AiOverview } from "./AiOverview";
 
 export interface DetailActions {
   onNavigate: (id: string) => void;
@@ -155,6 +156,7 @@ function PersonDetail({ index, person, filterActive, onNavigate, onOpenMemo, onN
   return (
     <div className="flex flex-col gap-4">
       <PersonHeader person={person} onReload={onReload} />
+      <AiOverview index={index} person={person} onOpenMemo={onOpenMemo} />
 
       <Section title="Salesforceの情報（サンプル）">
         {projects.length === 0 ? (

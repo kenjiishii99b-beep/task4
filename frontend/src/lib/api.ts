@@ -1,4 +1,4 @@
-import type { AssignedTag, AiMode, GraphData, KnowledgeResult, Memo, Person, PersonTag, RegisteredTag, Summary } from "./types";
+import type { AssignedTag, AiMode, GraphData, KnowledgeResult, Memo, Person, PersonOverview, PersonTag, RegisteredTag, Summary } from "./types";
 
 // 静的エクスポートのためビルド時に埋め込まれる。SWA Standard でリンクされたバックエンドにする場合は空にして相対パスで呼ぶ。
 const BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "");
@@ -37,7 +37,9 @@ export const api = {
   autoTag: (summary: Partial<Summary>) => post<{ assignedTags: AssignedTag[]; mode: AiMode }>("/api/auto-tag", summary),
   registerKnowledge: (summary: Summary, transcript: string) =>
     post<KnowledgeResult>("/api/knowledge", { summary, transcript }),
-  updatePerson: (id: string, data: { name?: string; company?: string; deptTitle?: string; summary?: string }) =>
+  personOverview: (id: string, force = false) =>
+    post<PersonOverview>(`/api/persons/${encodeURIComponent(id)}/overview${force ? "?force=true" : ""}`, {}),
+  updatePerson:(id: string, data: { name?: string; company?: string; deptTitle?: string; summary?: string }) =>
     patch<Person>(`/api/persons/${id}`, data),
   addPersonTag:(data: { personId: string; tagId?: string | null; label?: string; category: string; reason: string }) =>
     post<RegisteredTag>("/api/person-tags", data),

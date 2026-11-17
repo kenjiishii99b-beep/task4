@@ -273,3 +273,52 @@ def _mock_auto_tag(summary: Summary, existing: list[dict[str, str]], transcript:
                 )
             )
     return _normalize(out, existing)[:6]
+
+
+# ---------------- 人物の AI 概要 ----------------
+
+_OVERVIEW_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["bullets", "sourceMemoIds"],
+    "properties": {
+        "bullets": {"type": "array", "items": {"type": "string"}, "description": "3〜4 個の短い箇条書き（各 60 字以内）"},
+        "sourceMemoIds": {"type": "array", "items": {"type": "string"}, "description": "根拠にしたメモの id"},
+    },
+}
+
+_OVERVIEW_SYSTEM = (
+    "あなたは営業チームのナレッジ担当です。後任の営業が、この人物に初めて会う前に読む概要を作ります。"
+    "与えられた JSON（profile・tags・memos・relations・projects・sameTagPeople）だけを根拠に、"
+    "日本語の短い箇条書きを 3〜4 個作ってください（各 60 字以内、です・ます調は使わず体言止めや常体で）。\n"
+    "1 つ目：どんな立場の人か（会社・役職・意思決定への関わり）。\n"
+    "2 つ目：関心ごと・困りごと・目的と、その理由。\n"
+    "3 つ目：進行中の商談の状況と、同じテーマに詳しい社内（company が「自社」）の人がいればその名前。\n"
+    "4 つ目（材料があれば）：会話のきっかけになる趣味など。\n"
+    "書かれていないことは推測しない。共通の趣味・関心があるだけの相手について、知り合い・面識があるとは書かない"
+    "（触れる場合は「面識は未確認」と添える）。sourceMemoIds には根拠にしたメモの id を入れる。"
+)
+
+
+def overview(context: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """人物の文脈から概要の箇条書きと根拠メモ id を返す。"""
+    if get_settings().ai_mode != "mock":
+        data = _structured(_OVERVIEW_SYSTEM, json.dumps(context, ensure_ascii=False), "person_overview", _OVERVIEW_SCHEMA)
+        bullets = [b.strip() for b in data.get("bullets", []) if isinstance(b, str) and b.strip()][:4]
+        return bullets, [s for s in data.get("sourceMemoIds", []) if isinstance(s, str)]
+    return _mock_overview(context)
+
+
+def _mock_overview(ctx: dict[str, Any]) -> tuple[list[str], list[str]]:
+    p = ctx["profile"]
+    bullets = [f"{p['company']}・{p['deptTitle']}。{p['summary']}".strip("。") + "。"]
+    concerns = [t for t in ctx["tags"] if t["category"] not in ("hobby", "project")]
+    if concerns:
+        bullets.append("関心・課題：" + "、".join(f"{t['label']}（{t['reason']}）" for t in concerns[:3]))
+    if ctx["projects"]:
+        pr = ctx["projects"][0]
+        bullets.append(f"商談：{pr['name']}（{pr['amount']}・{pr['stage']}）")
+    hobbies = [t for t in ctx["tags"] if t["category"] == "hobby"]
+    if hobbies:
+        bullets.append("会話のきっかけ：" + "、".join(f"{t['label']}（{t['reason']}）" for t in hobbies[:2]))
+    return bullets[:4], [m["id"] for m in ctx["memos"][:2]]

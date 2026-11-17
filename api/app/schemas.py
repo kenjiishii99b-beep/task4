@@ -110,6 +110,15 @@ class Summary(CamelModel):
     interpretation: str = ""
 
 
+class OverviewOut(CamelModel):
+    person_id: str
+    bullets: list[str]
+    source_memo_ids: list[str]
+    mode: Literal["azure", "openai", "mock"]
+    cached: bool
+    generated_at: datetime
+
+
 class AutoTagIn(Summary):
     """要約＋（任意で）元の文字起こし"""
 

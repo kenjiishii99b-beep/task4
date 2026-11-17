@@ -112,16 +112,85 @@ export interface SearchHit {
   category?: CategoryId;
 }
 
+// ---------------- 検索語の解釈 ----------------
+
+/** 検索語の解釈結果 */
+export interface ParsedQuery {
+  /** 実際に照合する語（質問の言い回し・役職・敬称を除いたもの） */
+  term: string;
+  /** 「〜ってどんな人？」のような質問の形か */
+  isQuestion: boolean;
+  /** 「〜のキーマンは？」の形なら true（term は会社名） */
+  keyman: boolean;
+}
+
+const QUESTION_TAILS = [
+  /(って|は|とは|の)?(どんな|どういう)(人|方|ひと)(ですか|なの|なん|か)?[？?]*$/,
+  /(について|のこと)(を)?(教えて|知りたい)?(ください)?[？?]*$/,
+  /(って|は)(誰|だれ|何者)(ですか|なの|か)?[？?]*$/,
+  /とは[？?]*$/,
+];
+const KEYMAN_RE = /^(.*?)(?:の|で)?(キーマン|キーパーソン|決裁者|意思決定者|決定権者)(?:は|って|を|って誰|は誰|はだれ)?(?:ですか|教えて)?[？?]*$/;
+const TITLES_RE = /(部長|課長|係長|工場長|室長|社長|専務|常務|所長|主任|リーダー|マネージャー|さん|様|氏|殿|くん)+$/;
+
+const norm = (s: string) => s.toLowerCase().replace(/[\s　]+/g, "");
+
+/** 末尾の役職・敬称を外す（外すと空になる語、例「部長」だけ、はそのまま） */
+function stripTitle(s: string): string {
+  const t = s.replace(TITLES_RE, "");
+  return t || s;
+}
+
+export function parseQuery(q: string): ParsedQuery {
+  let s = q.trim();
+  const isQuestionMark = /[？?]$/.test(s);
+  const km = s.match(KEYMAN_RE);
+  if (km) return { term: km[1].replace(/[のでは]$/, "").trim(), isQuestion: true, keyman: true };
+  let isQuestion = isQuestionMark;
+  for (const re of QUESTION_TAILS) {
+    if (re.test(s)) {
+      s = s.replace(re, "");
+      isQuestion = true;
+    }
+  }
+  s = s.replace(/[？?！!。]+$/, "").trim();
+  return { term: stripTitle(s), isQuestion, keyman: false };
+}
+
+const TITLE_RANK: [RegExp, number][] = [
+  [/社長|専務|常務/, 1],
+  [/部長|工場長|所長/, 2],
+  [/室長|課長|グループ長/, 3],
+  [/リーダー|係長|主任|マネージャー/, 4],
+];
+
+/** キーマン候補：会社名が一致する人を、意思決定者 → 役職の高い順に並べる */
+function keymanSearch(idx: GraphIndex, companyTerm: string): SearchHit[] {
+  const c = norm(companyTerm);
+  const rows = idx.data.persons
+    .filter((p) => (c ? norm(p.company).includes(c) : p.company !== "自社"))
+    .map((p) => {
+      const decision = idx.data.projects.find((pr) => pr.roles.some((r) => r.personId === p.id && r.role.includes("意思決定者")));
+      const rank = decision ? 0 : (TITLE_RANK.find(([re]) => re.test(p.deptTitle))?.[1] ?? 9);
+      const sub = decision ? `意思決定者（${decision.name}）・${p.deptTitle}` : `${p.company}・${p.deptTitle}`;
+      return { p, rank, sub };
+    })
+    .sort((a, b) => a.rank - b.rank);
+  return rows.map(({ p, sub }) => ({ id: p.id, kind: "person" as const, label: p.name, sub }));
+}
+
 export function search(idx: GraphIndex, q: string, limit = 8): SearchHit[] {
-  const query = q.trim().toLowerCase().replace(/\s+/g, "");
+  const parsed = parseQuery(q);
+  if (parsed.keyman) return keymanSearch(idx, parsed.term).slice(0, limit);
+
+  const query = norm(parsed.term);
   if (!query) return [];
-  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+  // 「東都設備・田中部長」のような複合クエリにも当たるよう、区切りごとに判定する
+  const parts = parsed.term.split(/[・\s　,、]+/).map((x) => norm(stripTitle(x))).filter(Boolean);
   const hits: SearchHit[] = [];
   for (const p of idx.data.persons) {
     const hay = norm(`${p.name}${p.company}${p.deptTitle}`);
-    // 「東都設備・田中部長」のような複合クエリにも当たるよう、区切りごとに判定する
-    const parts = q.split(/[・\s　,、]+/).map(norm).filter(Boolean);
-    if (hay.includes(query) || (parts.length > 1 && parts.every((part) => hay.includes(part) || norm(p.name).includes(part.replace(/(部長|課長|さん|様)$/, ""))))) {
+    if (hay.includes(query) || (parts.length > 1 && parts.every((part) => hay.includes(part)))) {
       hits.push({ id: p.id, kind: "person", label: p.name, sub: `${p.company}・${p.deptTitle}` });
     }
   }

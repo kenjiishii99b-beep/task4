@@ -84,6 +84,19 @@ class PersonRelation(Base):
     confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class PersonOverview(Base):
+    """AI が作った人物の概要。元データ（プロフィール・タグ・メモ等）のハッシュが変わったら作り直す。"""
+
+    __tablename__ = "person_overviews"
+
+    person_id: Mapped[str] = mapped_column(ForeignKey("persons.id", ondelete="CASCADE"), primary_key=True)
+    bullets: Mapped[list] = mapped_column(JSON, default=list)
+    source_ids: Mapped[list] = mapped_column(JSON, default=list)
+    data_hash: Mapped[str] = mapped_column(String(64))
+    mode: Mapped[str] = mapped_column(String(20))
+    generated_at: Mapped[datetime] = mapped_column(DateTime)
+
+
 class Memo(Base):
     __tablename__ = "memos"
 

@@ -15,6 +15,7 @@ from app.schemas import (
     KnowledgeOut,
     MemoCreate,
     MemoOut,
+    OverviewOut,
     PersonOut,
     PersonTagCreate,
     PersonTagOut,
@@ -25,7 +26,7 @@ from app.schemas import (
     SummarizeOut,
     Summary,
 )
-from app.services import ai, knowledge
+from app.services import ai, knowledge, overview
 
 router = APIRouter(prefix="/api")
 
@@ -63,6 +64,16 @@ def auto_tag(body: AutoTagIn, db: Session = Depends(get_db)):
 def register_knowledge(body: KnowledgeIn, db: Session = Depends(get_db)):
     result = knowledge.register_knowledge(db, body)
     return KnowledgeOut.model_validate({**result, "mode": get_settings().ai_mode})
+
+
+@router.post("/persons/{person_id}/overview", response_model=OverviewOut)
+def person_overview(person_id: str, force: bool = False, db: Session = Depends(get_db)):
+    """人物の AI 概要。元データが変わっていなければ保存済みを返す（force=true で作り直す）。"""
+    row, cached = overview.get_overview(db, person_id, force=force)
+    return OverviewOut(
+        person_id=row.person_id, bullets=row.bullets, source_memo_ids=row.source_ids,
+        mode=row.mode, cached=cached, generated_at=row.generated_at,
+    )
 
 
 @router.patch("/persons/{person_id}", response_model=PersonOut)

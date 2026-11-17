@@ -235,7 +235,7 @@ PROJECTS = [
 def seed(reset: bool = False) -> None:
     with SessionLocal() as db:
         if reset:
-            for m in (models.Memo, models.PersonRelation, models.PersonTag, models.Project, models.Tag, models.Person):
+            for m in (models.PersonOverview, models.Memo, models.PersonRelation, models.PersonTag, models.Project, models.Tag, models.Person):
                 db.execute(delete(m))
             db.commit()
         elif db.scalar(select(models.Person.id).limit(1)):

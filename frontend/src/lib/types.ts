@@ -86,6 +86,15 @@ export interface Summary {
 
 export type AiMode = "azure" | "openai" | "mock";
 
+export interface PersonOverview {
+  personId: string;
+  bullets: string[];
+  sourceMemoIds: string[];
+  mode: AiMode;
+  cached: boolean;
+  generatedAt: string;
+}
+
 /** 画面に出す AI の呼び名 */
 export const AI_LABEL: Record<AiMode, string> = {
   azure: "Azure OpenAI",
