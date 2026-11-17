@@ -30,6 +30,19 @@ Functions が使える環境ならそのまま Function App にデプロイで�
   キー（`AZURE_OPENAI_API_KEY` / `OPENAI_API_KEY`）は Azure ポータルの Web アプリ「環境変数」で利用者が設定する（保存で自動再起動）。
   どれが使われているかは `/api/health` の `ai`（`azure` / `openai` / `mock`）で確認できる。
 
+## デモの前にデータを初期状態に戻す
+
+練習で登録したデータを消し、サンプルデータ（人物 20 名・メモ 21 件）に戻す。**`kyotsuchi_map` の全データが消える**ので、必要なら先に `GET /api/graph` の結果を保存しておく。
+
+```powershell
+# 1) バックアップ（任意）
+Invoke-WebRequest https://app-kyotsuchi-map-api.azurewebsites.net/api/graph -OutFile backups\kyotsuchi_map-$(Get-Date -Format yyyyMMdd-HHmm).json
+# 2) フラグを立てる → 自動で再起動し、startup.sh が app.seed --reset を実行する（2〜3 分）
+az webapp config appsettings set -g rg-001-gen12 -n app-kyotsuchi-map-api --settings RESET_DEMO_DATA=1 -o none
+# 3) /api/graph が人物 20 名・メモ 21 件になったら、必ずフラグを消す（残すと再起動のたびに消える）
+az webapp config appsettings delete -g rg-001-gen12 -n app-kyotsuchi-map-api --setting-names RESET_DEMO_DATA -o none
+```
+
 ## 再デプロイ
 
 ### API
