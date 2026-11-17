@@ -41,7 +41,13 @@ Invoke-WebRequest https://app-kyotsuchi-map-api.azurewebsites.net/api/graph -Out
 az webapp config appsettings set -g rg-001-gen12 -n app-kyotsuchi-map-api --settings RESET_DEMO_DATA=1 -o none
 # 3) /api/graph が人物 20 名・メモ 21 件になったら、必ずフラグを消す（残すと再起動のたびに消える）
 az webapp config appsettings delete -g rg-001-gen12 -n app-kyotsuchi-map-api --setting-names RESET_DEMO_DATA -o none
+# 4) 再起動が終わったら、全員分の AI 概要を作り直しておく（初期化で消えるため。約 7 分）
+powershell -ExecutionPolicy Bypass -File api/scripts/warm-overviews.ps1
 ```
+
+AI 概要は、元データ（プロフィール・タグ・メモなど）が変わらない限り保存済みのものを返すので、
+事前に作っておけばデモ中は待ち時間なしで表示され、Azure OpenAI の利用上限（gpt-4o 容量 10 ≒ 1 万トークン/分）にも当たらない。
+デモで記録を登録した人物だけは、次に開いたときに作り直される（1〜3 秒）。
 
 ## 再デプロイ
 
