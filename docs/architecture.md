@@ -69,8 +69,8 @@ flowchart TB
     end
 
     Lib -- "HTTPS / JSON" --> Routers
-    Models --> DB[("MySQL")]
-    AI --> LLM["Azure OpenAI"]
+    Models --> L_DB[("MySQL")]
+    AI --> L_LLM["Azure OpenAI"]
 ```
 
 ## 3. デプロイの流れ
@@ -80,16 +80,16 @@ flowchart LR
     Dev["開発 PC<br>C:\task4"] -- git push --> GH["GitHub<br>kenjiishii99b-beep/task4"]
 
     GH -- "frontend/ の変更" --> WF1["Actions: frontend-swa.yml<br>npm ci → next typegen → tsc → eslint<br>→ build（API の URL を埋め込み）"]
-    WF1 -- "out/ をアップロード" --> SWA["Static Web Apps"]
+    WF1 -- "out/ をアップロード" --> D_SWA["Static Web Apps"]
 
     GH -- "api/ の変更" --> WF2["Actions: api-test.yml<br>pytest（テストのみ）"]
 
     Dev -- "az webapp deploy（zip・手動）" --> Kudu["App Service のビルド<br>pip install"]
-    Kudu --> API["Web アプリ"]
-    API -- "起動時 startup.sh" --> Mig["テーブル作成・初期データ"]
-    Mig --> DB[("MySQL")]
+    Kudu --> D_API["Web アプリ"]
+    D_API -- "起動時 startup.sh" --> Mig["テーブル作成・初期データ"]
+    Mig --> D_DB[("MySQL")]
 
-    Secrets["秘密情報<br>（ポータルの環境変数で利用者が設定）<br>DATABASE_URL・AZURE_OPENAI_API_KEY"] -.-> API
+    Secrets["秘密情報<br>（ポータルの環境変数で利用者が設定）<br>DATABASE_URL・AZURE_OPENAI_API_KEY"] -.-> D_API
 ```
 
 API を自動デプロイしないのは、発行プロファイルに必要な基本認証を、共有環境の Web アプリで有効にしないため。
