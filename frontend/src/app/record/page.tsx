@@ -85,7 +85,7 @@ export default function RecordPage() {
           <br />
           どんな方でしたか？
           <br />
-          例えば見た目の特徴とか
+          関心ごとや困りごと、
           <br />
           趣味とかでもいいです。
           <br />
